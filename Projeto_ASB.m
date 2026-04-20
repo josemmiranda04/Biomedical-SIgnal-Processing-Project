@@ -112,8 +112,8 @@ pns_interp = spline(T_pns, rr_pns, T_uniforme);
 %Centrar o sinal no zero (Remover a componente DC (fazer a média)).
 %correspnde ao pico de 0Hz no pwelch (assim vamos conseguir ver as HF e as
 %LF melhor pois retiramos o pico grande)
-sns_interp = sns_interp - mean(sns_interp);
-pns_interp = pns_interp - mean(pns_interp);
+%sns_interp = sns_interp - mean(sns_interp);
+%pns_interp = pns_interp - mean(pns_interp);
 
 
 %% VISUALIZAÇÃO 
@@ -130,3 +130,10 @@ xlabel('Tempo (s)')
 ylabel('Amplitude (s)')
 grid on
 
+%% ANÁLISE ESPETRAL (PWelch)
+
+
+%% VISUALIZAÇÃO
+
+
+%% 10. EXTRAÇÃO DAS Frequencias? (LF & HF)
