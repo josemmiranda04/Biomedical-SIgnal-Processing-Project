@@ -2,7 +2,7 @@
 %Primeiramente temos de fazer os gráficos das frequências cardíacas ao
 %longo do tempo. Os dados fornecidos contêm os registos dos intervalos RR
 %dos individuos durante uma hora
-table_signal = readtable("/Users/mirandaaa/Desktop/Fct- UNI/4º Ano/2º Semestre/ASB/Projeto/ECG/Colo_rectal/Dados da Sofia Silvestre/Intervalos_RR_1h/Doente01/01_Dia1.txt");
+table_signal = readtable("C:\Users\guilh\OneDrive\Documentos\MATLAB\ECG\ECG\Colo_rectal\Dados da Sofia Silvestre\Intervalos_RR_1h\Doente01\01_Dia-1.txt");
 signal_raw = table2array(table_signal);
 
 %% RECUPERAÇÃO DE DADOS TEMPORAIS
@@ -61,14 +61,6 @@ BPM = mean(new_BPM) % que é igual a = mean(BPM), ou seja, o impacto da suaviza�
 fs = 1/0.5; %agora temos uma frequência
 HRV = pwelch(rr_intervals, [],[],[], fs);
 figure, plot(HRV), title("HRV")
-
-%% HRV
-% RMSSD
-rmssd = sqrt(mean((diff(intervalo_RR*1000)).^2));
-% SDNN
-sdnn=sqrt(mean((intervalos_RR-mean(intervalos_RR*1000)).^2));
-% pNN50
-
 
 %% CÁLCULO DA DIFERENÇA (Delta RR) E SEPARAÇÃO (SNS vs PNS)
 % Calcular a diferença de tempo entre o batimento atual e o anterior
@@ -137,3 +129,86 @@ grid on
 
 
 %% 10. EXTRAÇÃO DAS Frequencias? (LF & HF)
+%% Poincaré
+%Este método basicamente é um espaço de fases a duas dimensões com um
+%formato eliptico amplo e central associado a um comportamento saudável e
+%um comportamento eliptico curto e na periieria associado a doentes
+RR = signal_raw(1:end-1);
+RR_1 = signal_raw(2:end);
+center_y = mean(RR);
+center_x = mean(RR_1);
+
+%Parâmeteros do gráfico com todos os dados
+CCD = sqrt(center_x^2+center_y^2)%baseline cardiac cycle duration (CCD) comprimento do vetor que aponta para o centro
+SD1 = sqrt(1/2*std(diff(RR))^2);
+SD2 = sqrt(abs(2*std(RR)^2-1/2*std(diff(RR))^2));
+
+%Poincaré
+figure
+scatter(signal_raw(1:end-1), signal_raw(2:end), 'filled')
+xlabel("Intervalos RR")
+ylabel("Intervalos RR_+_1")
+title("Gráfico Poincaré")
+hold on
+plot(center_x,center_y, 'r.', "MarkerSize",10)
+text(center_x, center_y, '  Centro', 'FontWeight','bold');
+
+% Variação dos Parâmetros com o tempo
+CCD_t = [];
+SD1_t = []
+SD2_t = []
+%Precisamos de usar o T_base, que representa o tempo do nosso sinal
+%Vamos calculando os mesmos parâmetros para intervalos de 15 segundos (lembrar que a
+%data está em milisegundos) e juntar num array para obtermos a variação no
+%tempo
+w = 15000 %Intervalo
+T_w = 0:w:3700000 %ATENÇÃO: HÁ DADOS COM MAIS DO QUE 3600000 SEGUNDOS!!!
+for i = 1:length(T_w)-1
+    if T_w(i) <= max(T_base) %Não interessa se o valor de T_w(i+1) é maior do que o max(T_base) porque o sistema assume só os valores menores que isso que não é conjunto vazio
+        idx = find(T_base >= T_w(i)  & T_base <= T_w(i+1)); %vai buscar os indexs
+    else
+        break %Se T_w(i) for maior do que T_base, ent dá conjunto vazio, então acaba aqui o ciclo
+    end
+    rr_15 = signal_raw(idx); %encontra os valores do sinal com os indexes respetivos
+    %calcula cada parâmetro e adciona ao array
+    sd1 = sqrt(1/2*std(diff(rr_15))^2);
+    sd2 = sqrt(abs(2*std(rr_15)^2-1/2*std(diff(rr_15))^2));
+    ccd = sqrt(mean(rr_15)^2+mean(rr_15(2:end))^2);
+    SD1_t = [SD1_t, sd1];
+    SD2_t = [SD2_t, sd2];
+    CCD_t = [CCD_t, ccd];
+end
+T_SD = w:w:w*length(SD1_t); %atualiza os dados temporais
+
+%Plotar SD1 e SD2 (estes gráfico servem só para visualizar os dados e ter uma ideia deles, mas não
+%permitem chegar a nenhuma conclusão)
+figure
+subplot(3,1,1)
+plot(T_SD, SD1_t)
+title("SD1 Over Time")
+subplot(3,1,2)
+plot(T_SD,SD2_t)
+title("SD2 Over Time")
+subplot(3,1,3)
+plot(T_SD,CCD_t)
+title("CCD Over Time")
+
+%Cálculos do CSI e CPI
+CCD_mean = CCD_t-mean(CCD_t);
+SD1_mean = SD1_t-mean(SD1_t);
+SD2_mean = SD2_t-mean(SD2_t);
+D = CCD + CCD_mean;
+D_flipped = 2*mean(D)-D;
+%Supostamente existe uma constante k que define o peso de cada SD para o
+%CSI e CPI, deve dar para encontrar esses valores em algum lugar
+CSI = (SD2 + SD2_mean)+D_flipped; %O parassimpático contribui negativamente para o CCD, por isso é que está flipped
+CPI = (SD1 + SD1_mean)+D; %O simpático contribui positivamente para o CCD, por isso é que não está flipped
+
+%Plotar CSI e CPI com um filtro a suavizar
+figure
+subplot(2,1,1)
+plot(T_SD, movmean(CSI,3), 'red')
+title("CSI")
+subplot(2,1,2)
+plot(T_SD,movmean(CPI,3), 'b')
+title("CPI")
