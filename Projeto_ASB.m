@@ -2,8 +2,11 @@
 %Primeiramente temos de fazer os gráficos das frequências cardíacas ao
 %longo do tempo. Os dados fornecidos contêm os registos dos intervalos RR
 %dos individuos durante uma hora
-table_signal = readtable("C:\Users\guilh\OneDrive\Documentos\MATLAB\ECG\ECG\Colo_rectal\Dados da Sofia Silvestre\Intervalos_RR_1h\Doente01\01_Dia-1.txt");
+table_signal = readtable("C:\Users\guilh\OneDrive\Documentos\MATLAB\ECG\ECG\Colo_rectal\Dados da Sofia Silvestre\Intervalos_RR_1h\Doente02\02_Dia1.txt");
 signal_raw = table2array(table_signal);
+
+%% ELIMINAÇÃO DE OUTLIERS
+%Verificar vários pacientes para perceber se são mesmo outliers
 
 %% RECUPERAÇÃO DE DADOS TEMPORAIS
 samples = length(signal_raw);
@@ -162,7 +165,7 @@ SD2_t = []
 %data está em milisegundos) e juntar num array para obtermos a variação no
 %tempo
 w = 15000 %Intervalo
-T_w = 0:w:3700000 %ATENÇÃO: HÁ DADOS COM MAIS DO QUE 3600000 SEGUNDOS!!!
+T_w = 0:w:max(T_base)+w %este +w existe para garantir que todos os dados são incluídos
 for i = 1:length(T_w)-1
     if T_w(i) <= max(T_base) %Não interessa se o valor de T_w(i+1) é maior do que o max(T_base) porque o sistema assume só os valores menores que isso que não é conjunto vazio
         idx = find(T_base >= T_w(i)  & T_base <= T_w(i+1)); %vai buscar os indexs
@@ -198,11 +201,23 @@ CCD_mean = CCD_t-mean(CCD_t);
 SD1_mean = SD1_t-mean(SD1_t);
 SD2_mean = SD2_t-mean(SD2_t);
 D = CCD + CCD_mean;
-D_flipped = 2*mean(D)-D;
+D_flipped = 2.*mean(D)-D;
+
 %Supostamente existe uma constante k que define o peso de cada SD para o
 %CSI e CPI, deve dar para encontrar esses valores em algum lugar
-CSI = (SD2 + SD2_mean)+D_flipped; %O parassimpático contribui negativamente para o CCD, por isso é que está flipped
-CPI = (SD1 + SD1_mean)+D; %O simpático contribui positivamente para o CCD, por isso é que não está flipped
+%Como não nos foram sugeridos os valores dos k's, vamos obter a partir da
+%normalização:
+%- Fazer k a partir das constantes de cada parâmetro é irrealista porque
+%não considera a variação dos valores no tempo
+%- Fazer k ponto a ponto pode gerar algum ruído devido à alta sensibilidade
+%a variações
+%- Vamos fazer k aplicado em janelas e considerar esse o k para todos os
+%valores da janela
+ks = get_k(SD2_mean, D_flipped, 5);
+kp = get_k(SD1_mean, D, 5);
+
+CSI = ks.*(SD2 + SD2_mean)+D_flipped; %O parassimpático contribui negativamente para o CCD, por isso é que está flipped
+CPI = kp.*(SD1 + SD1_mean)+D; %O simpático contribui positivamente para o CCD, por isso é que não está flipped
 
 %Plotar CSI e CPI com um filtro a suavizar
 figure
