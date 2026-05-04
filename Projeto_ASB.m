@@ -2,12 +2,13 @@
 %Primeiramente temos de fazer os gráficos das frequências cardíacas ao
 %longo do tempo. Os dados fornecidos contêm os registos dos intervalos RR
 %dos individuos durante uma hora
-table_signal = readtable("C:\Users\guilh\OneDrive\Documentos\MATLAB\ECG\ECG\Colo_rectal\Dados da Sofia Silvestre\Intervalos_RR_1h\Doente02\02_Dia1.txt");
+table_signal = readtable("C:\Users\guilh\OneDrive\Documentos\MATLAB\ECG\ECG\Colo_rectal\Dados da Sofia Silvestre\Intervalos_RR_1h\Doente01\01_Dia-1.txt");
 signal_raw = table2array(table_signal);
 
 %% ELIMINAÇÃO DE OUTLIERS
 %Verificar vários pacientes para perceber se são mesmo outliers
-
+%for i = 1:length(signal_raw)
+    %if abs(x(i+1)-x(i)) >= 700 
 %% RECUPERAÇÃO DE DADOS TEMPORAIS
 samples = length(signal_raw);
 %Para os posicionar no tempo, temos de fazer o seguinte ciclo while
@@ -34,6 +35,7 @@ grid on
 %daria, complicava bastante
 new_T = 0:500:3600000; %aqui posso atribuir o valor que eu quiser para que todos os sinais tenham o mesmo tamanho em x, convém ser um valoro
 rr_intervals = interp1(T_base, signal_raw, new_T, "spline"); %o spline consegue dar uma continuação mais orgânica ao batimento cardíaco, evitando a presneça de muitos outliers
+fs = 1/0.5
 figure, subplot(1,2,1), plot(T_base, signal_raw), title("Sem Interpolação")
 subplot(1,2,2), plot(new_T, rr_intervals),title("Com Interpolação")
 
