@@ -7,12 +7,12 @@ function k = get_k(SD, D, w)
         elseif i+w-1 <= n
             SD_std = std(SD(i:i+w-1)); %+w-1 para garantir que temos w valores
             D_std = std(D(i:i+w-1));
-            k_one = SD_std/D_std;
+            k_one = 10*(SD_std/D_std);
             k = [k,repmat(k_one,1,w)]; %adiciona o valor de k w vezes ao vetor para acertar os eixos
         else
             SD_std = std(SD(i:n));
             D_std = std(D(i:n));
-            k_one = SD_std/D_std;
+            k_one = 10*(SD_std/D_std);
             k = [k,repmat(k_one,1,n-i+1)];
         end
     end

@@ -2,13 +2,10 @@
 %Primeiramente temos de fazer os gráficos das frequências cardíacas ao
 %longo do tempo. Os dados fornecidos contêm os registos dos intervalos RR
 %dos individuos durante uma hora
-table_signal = readtable("C:\Users\guilh\OneDrive\Documentos\MATLAB\ECG\ECG\Colo_rectal\Dados da Sofia Silvestre\Intervalos_RR_1h\Doente01\01_Dia-1.txt");
+table_signal = readtable("C:\Users\guilh\OneDrive\Documentos\MATLAB\ECG\ECG\Colo_rectal\Dados da Sofia Silvestre\Intervalos_RR_1h\Doente01\01_Dia1.txt");
 signal_raw = table2array(table_signal);
+signal_raw = signal_raw./1000; %(passar para segundos)
 
-%% ELIMINAÇÃO DE OUTLIERS
-%Verificar vários pacientes para perceber se são mesmo outliers
-%for i = 1:length(signal_raw)
-    %if abs(x(i+1)-x(i)) >= 700 
 %% RECUPERAÇÃO DE DADOS TEMPORAIS
 samples = length(signal_raw);
 %Para os posicionar no tempo, temos de fazer o seguinte ciclo while
@@ -18,128 +15,60 @@ for i=[1:samples-1] %Samples-1 porque o último valor não tem de ser somado par
     T_base = [T_base ponto_seguinte];
 end
 
-figure
-plot(T_base, signal_raw, 'b', 'LineWidth', 1.5); 
-title('Intervalos RR')
-xlabel('Tempo (s)')
-ylabel('Intervalo RR (s)')
-grid on
-
-%% INTERPOLAÇÂO
-%A interpolação é necessária porque não temos uma frequência de amostragem
-%fixa, logo não conseguimos aplicar nem transformada de fourier nem
-%Transformada de Wavelets descreta
-%O objetivo será criar pontos para que o sinal fique com intervalos
-%constantes de sampling
-%new_T = 0:300:sum(signal); se fizesse isto teria que normalizar para poder comparar os sinais, não
-%daria, complicava bastante
-new_T = 0:500:3600000; %aqui posso atribuir o valor que eu quiser para que todos os sinais tenham o mesmo tamanho em x, convém ser um valoro
-rr_intervals = interp1(T_base, signal_raw, new_T, "spline"); %o spline consegue dar uma continuação mais orgânica ao batimento cardíaco, evitando a presneça de muitos outliers
-fs = 1/0.5
-figure, subplot(1,2,1), plot(T_base, signal_raw), title("Sem Interpolação")
-subplot(1,2,2), plot(new_T, rr_intervals),title("Com Interpolação")
-
-%% BPM
-BPM_s = 60000./signal_raw;
-new_BPM = 60000./rr_intervals;
-figure, subplot(1,2,1), plot(T_base, BPM_s), title("Sem Interpolação")
-subplot(1,2,2), plot(new_T, new_BPM),title("Com Interpolação")
-
-%% SUAVIZAÇÃO
-%tem de ser depois da interpolação, porque se for antes da interpolação, os
-%intervalos RR ficam contaminados, produzindo dados incorretos a partir
-%daqui
-%A suavização neste caso só serve para facilitar a visualização do gráfico
-%e não para alterar dados antes de estes serem usados em futuras operações
-%O objetivo será tentar sempre manter os dados o maiss RAW possíveis
-BPM_mean = movmean(BPM_s, 50); %1000 suaviza demaisado o sinal
-new_BPM_mean = movmean(new_BPM, 50);
-figure,  subplot(1,2,1), plot(T_base, BPM_mean),title("Sem Interpolação"),
-subplot(1,2,2), plot(new_T, new_BPM_mean), title("Com Interpolação")
-
-%% BPM MÉDIO
-BPM = mean(new_BPM) % que é igual a = mean(BPM), ou seja, o impacto da suavização e interpolação nos dados foi bastante baixo, garantindo a integridade inicial dos dados
-
-%% ESPETRO DE POTÊNCIA
-%Permite relacionar com o sistema nervoso (tenho as relações escritas numa
-%folha)
-fs = 1/0.5; %agora temos uma frequência
-HRV = pwelch(rr_intervals, [],[],[], fs);
-figure, plot(HRV), title("HRV")
-
-%% CÁLCULO DA DIFERENÇA (Delta RR) E SEPARAÇÃO (SNS vs PNS)
-% Calcular a diferença de tempo entre o batimento atual e o anterior
-% diff() encurta o vetor em 1 por isso colocamos um 0 no início para manter o tamanho
-delta_rr = [0; diff(signal_raw)];
-
-%FC aumenta, o t entre batimentos diminui (delta_rr negativo)
-idx_sns = find(delta_rr < 0);
-T_sns = T_base(idx_sns);       % Eixo temporal só com os SNS
-rr_sns = signal_raw(idx_sns);    % Valores de RR associados ao SNS
-
-%FC diminui, o t entre batimentos aumenta (delta_rr positivo)
-idx_pns = find(delta_rr > 0);
-T_pns = T_base(idx_pns);       %eixo temporal só com instantes PNS
-rr_pns = signal_raw(idx_pns);    %valores de RR associados ao PNS
-
-figure;
-plot(T_base, signal_raw, 'Color', [0.7 0.7 0.7], 'LineWidth', 0.5); hold on;
-
-%plota apenas os do SNS a vermelho
-plot(T_sns, rr_sns, 'r.', 'MarkerSize', 12); 
-plot(T_pns, rr_pns, 'b.', 'MarkerSize', 12); 
-title('Separação SNS vs PNS')
-xlabel('Tempo (s)')
-ylabel('Intervalo RR (s)')
-legend('Sinal Original', 'SNS', 'PNS')
-
-%% INTERPOLAÇÃO SPLINE 
-% ao extrair os pontos, os dados T_sns e T_pns estão cheios de missing
-% data basicamnete (necessário reamostragem)
-%necessario pois pwelch necessita que a distância temporal entre todas as amostras seja igual
-
-fs_interp = 4; % 4 é o standard que encontrei que se utiliza HRV (HRV max = 0.4Hz)
-T_uniforme = T_base(1) : (1/fs_interp) : T_base(end); %ENCONTREI ESTA FORMA MAIS SIMPLES DE CRIAR O EIXO TEMPORAL (uma amostra a cada 0.25 segundos)
-%começa no primeiro batimento (T_base(1))) e vai até ao ultimo
-
-%onde os pontos estavam(T_sns), qual era o valor deles(rr_sns), e para onde vão os pontos(T_uniforme)
-sns_interp = spline(T_sns, rr_sns, T_uniforme);
-pns_interp = spline(T_pns, rr_pns, T_uniforme);
-
-%Centrar o sinal no zero (Remover a componente DC (fazer a média)).
-%correspnde ao pico de 0Hz no pwelch (assim vamos conseguir ver as HF e as
-%LF melhor pois retiramos o pico grande)
-%sns_interp = sns_interp - mean(sns_interp);
-%pns_interp = pns_interp - mean(pns_interp);
-
-
-%% VISUALIZAÇÃO 
+%% ELIMINAÇÃO DE OUTLIERS
+%Verificar vários pacientes para perceber se são mesmo outliers
+signal_out = filloutliers(signal_raw,'pchip', 'movmean',35);
+signal_out = movmean(signal_out, 30)
+%% Visualização
 figure
 subplot(2,1,1)
-plot(T_uniforme, sns_interp, 'r');
-title('Série SNS')
-ylabel('Amplitude (s)')
+plot(T_base, signal_raw, 'b', 'LineWidth', 1.5); 
+title('Intervalos RR - Raw')
+xlabel('Tempo (s)')
+ylabel('Intervalo RR (s)')
 grid on
 subplot(2,1,2)
-plot(T_uniforme, pns_interp, 'b');
-title('Série PNS (Marcadores de Desaceleração) - Pronta para PSD')
+plot(T_base, signal_out, 'b', 'LineWidth', 1.5); 
+title('Intervalos RR - Suavizado')
 xlabel('Tempo (s)')
-ylabel('Amplitude (s)')
+ylabel('Intervalo RR (s)')
 grid on
-
-%% ANÁLISE ESPETRAL (PWelch)
-
-
-%% VISUALIZAÇÃO
 
 
 %% 10. EXTRAÇÃO DAS Frequencias? (LF & HF)
+%STFT
+fs_interp = 4; % 4Hz
+T_uniforme = T_base(1) : (1/fs_interp) : T_base(end);
+signal_interp = interp1(T_base, signal_out, T_uniforme, "pchip");
+window = hamming(256, "periodic") %evita cortes abrubtos nas frequências e criação de artefactos
+[s, f, t] = stft(signal_interp, fs_interp,'Window', window,'OverlapLength', 64,'FFTLength', 512);
+PSD = abs(s).^2;
+
+% LF/HF indices
+LF_idx = (f >= 0.04) & (f < 0.15);
+HF_idx = (f >= 0.15) & (f < 0.40);
+
+% Band powers over time
+LF_t = trapz(f(LF_idx), PSD(LF_idx,:),1);
+HF_t = trapz(f(HF_idx), PSD(HF_idx,:),1);
+
+%Ativações
+SNS_t = LF_t ./ HF_t; %Mede a ativação do SNS em relação ao SNP
+PNS_t = HF_t;
+
+%Normalização
+SNS_norm = SNS_t/mean(SNS_t);
+%SNS_norm = SNS_norm-mean(SNS_norm);
+PNS_norm = PNS_t/mean(PNS_t);
+%PNS_norm = PNS_norm-mean(PNS_norm);
+figure, subplot(2,1,1), plot(t, PNS_norm), subplot(2,1,2), plot(t,SNS_norm)
 %% Poincaré
 %Este método basicamente é um espaço de fases a duas dimensões com um
 %formato eliptico amplo e central associado a um comportamento saudável e
 %um comportamento eliptico curto e na periieria associado a doentes
-RR = signal_raw(1:end-1);
-RR_1 = signal_raw(2:end);
+
+RR = signal_out(1:end-1);
+RR_1 = signal_out(2:end);
 center_y = mean(RR);
 center_x = mean(RR_1);
 
@@ -150,7 +79,7 @@ SD2 = sqrt(abs(2*std(RR)^2-1/2*std(diff(RR))^2));
 
 %Poincaré
 figure
-scatter(signal_raw(1:end-1), signal_raw(2:end), 'filled')
+scatter(signal_raw(1:end-1), signal_out(2:end), 'filled')
 xlabel("Intervalos RR")
 ylabel("Intervalos RR_+_1")
 title("Gráfico Poincaré")
@@ -166,7 +95,7 @@ SD2_t = []
 %Vamos calculando os mesmos parâmetros para intervalos de 15 segundos (lembrar que a
 %data está em milisegundos) e juntar num array para obtermos a variação no
 %tempo
-w = 15000 %Intervalo
+w = 15 %Intervalo
 T_w = 0:w:max(T_base)+w %este +w existe para garantir que todos os dados são incluídos
 for i = 1:length(T_w)-1
     if T_w(i) <= max(T_base) %Não interessa se o valor de T_w(i+1) é maior do que o max(T_base) porque o sistema assume só os valores menores que isso que não é conjunto vazio
@@ -174,7 +103,7 @@ for i = 1:length(T_w)-1
     else
         break %Se T_w(i) for maior do que T_base, ent dá conjunto vazio, então acaba aqui o ciclo
     end
-    rr_15 = signal_raw(idx); %encontra os valores do sinal com os indexes respetivos
+    rr_15 = signal_out(idx); %encontra os valores do sinal com os indexes respetivos
     %calcula cada parâmetro e adciona ao array
     sd1 = sqrt(1/2*std(diff(rr_15))^2);
     sd2 = sqrt(abs(2*std(rr_15)^2-1/2*std(diff(rr_15))^2));
@@ -196,17 +125,17 @@ plot(T_SD,SD2_t)
 title("SD2 Over Time")
 subplot(3,1,3)
 plot(T_SD,CCD_t)
-title("CCD Over Time")
+title("CCD Over Time") %É normal ser muito parecido ao sinal original visto que ele mede a distância ao centro de todos os pontos do sinal, que varia de acordo com o sinal
 
 %Cálculos do CSI e CPI
-CCD_mean = CCD_t-mean(CCD_t);
-SD1_mean = SD1_t-mean(SD1_t);
-SD2_mean = SD2_t-mean(SD2_t);
-D = CCD + CCD_mean;
+CCD_det = detrend(CCD_t);
+SD1_det = detrend(SD1_t);
+SD2_det = detrend(SD2_t);
+D = CCD + CCD_det;
 D_flipped = 2.*mean(D)-D;
 
 %Supostamente existe uma constante k que define o peso de cada SD para o
-%CSI e CPI, deve dar para encontrar esses valores em algum lugar
+%CSI e CPI
 %Como não nos foram sugeridos os valores dos k's, vamos obter a partir da
 %normalização:
 %- Fazer k a partir das constantes de cada parâmetro é irrealista porque
@@ -215,17 +144,34 @@ D_flipped = 2.*mean(D)-D;
 %a variações
 %- Vamos fazer k aplicado em janelas e considerar esse o k para todos os
 %valores da janela
-ks = get_k(SD2_mean, D_flipped, 5);
-kp = get_k(SD1_mean, D, 5);
+ks = get_k(SD2_det, D_flipped, 5);
+kp = get_k(SD1_det, D, 5);
 
-CSI = ks.*(SD2 + SD2_mean)+D_flipped; %O parassimpático contribui negativamente para o CCD, por isso é que está flipped
-CPI = kp.*(SD1 + SD1_mean)+D; %O simpático contribui positivamente para o CCD, por isso é que não está flipped
+
+CPI = kp.*(SD1 + SD1_det)+D; %O simpático contribui positivamente para o CCD, por isso é que não está flipped
+CSI = ks.*(SD2 + SD2_det)+D_flipped; %O parassimpático contribui negativamente para o CCD, por isso é que está flipped
+
+%Normalização
+CPI_norm = CPI/mean(CPI);
+CSI_norm = CSI/mean(CSI);
+
+%Detrend
+CPI_det = detrend(CPI)
+CSI_det = detrend(CSI)
+
 
 %Plotar CSI e CPI com um filtro a suavizar
 figure
 subplot(2,1,1)
-plot(T_SD, movmean(CSI,3), 'red')
-title("CSI")
-subplot(2,1,2)
-plot(T_SD,movmean(CPI,3), 'b')
+plot(T_SD, movmean(CPI_det,3), 'b')
 title("CPI")
+
+subplot(2,1,2)
+plot(T_SD, sgolayfilt(CSI_det,3,11), 'red')
+title("CSI")
+%%
+figure
+boxplot([CSI_norm(:), CPI_norm(:)])
+xticklabels({'SNS','PNS'})
+ylabel('Normalized Power')
+title('Distribuição dos índices autonómicos')
